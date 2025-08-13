@@ -1,0 +1,24 @@
+;; Minimal compilable NFT item skeleton in FunC (to be extended)
+
+(builder) begin_cell() asm "NEWC";
+(cell) end_cell(builder b) asm "ENDC";
+(slice) begin_parse(cell c) asm "CTOS";
+
+() recv_internal(int msg_value, cell in_msg, slice in_msg_body) impure {
+  ;; no-op for now
+}
+
+(slice, slice, int, int, cell) get_nft_data() method_id {
+  cell c = end_cell(begin_cell());
+  slice empty = begin_parse(c);
+  return (empty, empty, 0, 1, c);
+}
+
+(int) get_date() method_id {
+  return 0;
+}
+
+(slice, int) get_static_data() method_id {
+  slice empty = begin_parse(end_cell(begin_cell()));
+  return (empty, 0);
+}
