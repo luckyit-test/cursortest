@@ -1,0 +1,24 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luckyit-test/cursortest.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/luckyit-test/cursortest/issues"
+  },
+  "homepage": "https://github.com/luckyit-test/cursortest#readme",
+  "description": "",
+  "devDependencies": {
+    "@ton-community/func-js": "^0.10.0",
+    "ton-core": "^0.53.0"
+  }
+}

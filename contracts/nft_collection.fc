@@ -1,0 +1,22 @@
+;; Minimal compilable NFT collection skeleton in FunC (to be extended)
+
+(builder) begin_cell() asm "NEWC";
+(cell) end_cell(builder b) asm "ENDC";
+(slice) begin_parse(cell c) asm "CTOS";
+
+() recv_internal(int msg_value, cell in_msg, slice in_msg_body) impure {
+}
+
+(slice, int, cell) get_collection_data() method_id {
+  slice empty = begin_parse(end_cell(begin_cell()));
+  return (empty, 0, end_cell(begin_cell()));
+}
+
+(slice) get_nft_address_by_index(int index) method_id {
+  slice empty = begin_parse(end_cell(begin_cell()));
+  return empty;
+}
+
+(cell) get_nft_content(int index, cell individual_content) method_id {
+  return end_cell(begin_cell());
+}
