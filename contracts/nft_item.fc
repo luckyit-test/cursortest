@@ -1,24 +1,88 @@
-;; Minimal compilable NFT item skeleton in FunC (to be extended)
+;; NFT item with TIP-4-like getters including mint date
 
 (builder) begin_cell() asm "NEWC";
 (cell) end_cell(builder b) asm "ENDC";
 (slice) begin_parse(cell c) asm "CTOS";
+(cell) get_data() asm "c4 PUSH";
+() set_data(cell d) asm "c4 POP";
+
+(int) slice_bits(slice s) asm "SBITS";
+(int) slice_refs(slice s) asm "SREFS";
+
+;; low-level helpers (no stdlib)
+(builder) b_store_ref(builder b, cell c) asm "STREF";
+(builder) b_store_uint(builder b, int x, int bits) asm "STUX";
+(int, slice) s_ld_uint(slice s, int bits) asm "LDUX";
+(cell, slice) s_ld_ref(slice s) asm "LDREF";
+
+(cell) empty_cell() inline { return end_cell(begin_cell()); }
+
+(int) is_uninitialized() inline {
+  slice ds = begin_parse(get_data());
+  return (slice_bits(ds) == 0) & (slice_refs(ds) == 0);
+}
+
+() init_state() impure inline {
+  builder b = begin_cell();
+  b = b_store_ref(b, empty_cell());   ;; owner
+  b = b_store_ref(b, empty_cell());   ;; collection
+  b = b_store_uint(b, 0, 64);         ;; index
+  b = b_store_uint(b, 0, 64);         ;; date
+  b = b_store_ref(b, empty_cell());   ;; content
+  set_data(end_cell(b));
+}
+
+;; c4 layout: ref owner_cell | ref collection_cell | uint64 index | uint64 date | ref content_cell
+(cell, cell, int, int, cell) load_state() inline {
+  if (is_uninitialized()) {
+    init_state();
+  }
+  slice ds = begin_parse(get_data());
+  cell owner_c = empty_cell();
+  cell collection_c = empty_cell();
+  int index = 0;
+  int date = 0;
+  cell content_c = empty_cell();
+  (owner_c, ds) = s_ld_ref(ds);
+  (collection_c, ds) = s_ld_ref(ds);
+  (index, ds) = s_ld_uint(ds, 64);
+  (date, ds) = s_ld_uint(ds, 64);
+  (content_c, ds) = s_ld_ref(ds);
+  return (owner_c, collection_c, index, date, content_c);
+}
 
 () recv_internal(int msg_value, cell in_msg, slice in_msg_body) impure {
   ;; no-op for now
 }
 
 (slice, slice, int, int, cell) get_nft_data() method_id {
-  cell c = end_cell(begin_cell());
-  slice empty = begin_parse(c);
-  return (empty, empty, 0, 1, c);
+  cell owner_c = empty_cell();
+  cell collection_c = empty_cell();
+  int index = 0;
+  int date = 0;
+  cell content_c = empty_cell();
+  (owner_c, collection_c, index, date, content_c) = load_state();
+  slice owner = begin_parse(owner_c);
+  slice collection = begin_parse(collection_c);
+  return (owner, collection, index, 1, content_c);
 }
 
 (int) get_date() method_id {
-  return 0;
+  cell owner_c = empty_cell();
+  cell collection_c = empty_cell();
+  int index = 0;
+  int date = 0;
+  cell content_c = empty_cell();
+  (owner_c, collection_c, index, date, content_c) = load_state();
+  return date;
 }
 
 (slice, int) get_static_data() method_id {
-  slice empty = begin_parse(end_cell(begin_cell()));
-  return (empty, 0);
+  cell owner_c = empty_cell();
+  cell collection_c = empty_cell();
+  int index = 0;
+  int date = 0;
+  cell content_c = empty_cell();
+  (owner_c, collection_c, index, date, content_c) = load_state();
+  return (begin_parse(collection_c), index);
 }

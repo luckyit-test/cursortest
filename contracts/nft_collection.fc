@@ -1,22 +1,146 @@
-;; Minimal compilable NFT collection skeleton in FunC (to be extended)
+;; NFT collection with TIP-4-like getters and date-based minting (one date -> one NFT)
 
 (builder) begin_cell() asm "NEWC";
 (cell) end_cell(builder b) asm "ENDC";
 (slice) begin_parse(cell c) asm "CTOS";
+(cell) get_data() asm "c4 PUSH";
+() set_data(cell d) asm "c4 POP";
+
+(int) slice_bits(slice s) asm "SBITS";  ;; number of bits left in slice
+(int) slice_refs(slice s) asm "SREFS";  ;; number of refs left in slice
+
+;; low-level helpers (no stdlib)
+(builder) b_store_ref(builder b, cell c) asm "STREF";
+(builder) b_store_uint(builder b, int x, int bits) asm "STUX";
+(int, slice) s_ld_uint(slice s, int bits) asm "LDUX";
+(cell, slice) s_ld_ref(slice s) asm "LDREF";
+
+(cell) empty_cell() inline {
+  return end_cell(begin_cell());
+}
+
+(int) is_uninitialized() inline {
+  slice ds = begin_parse(get_data());
+  return (slice_bits(ds) == 0) & (slice_refs(ds) == 0);
+}
+
+() init_state() impure inline {
+  builder b = begin_cell();
+  b = b_store_uint(b, 0, 64);
+  b = b_store_ref(b, empty_cell());
+  b = b_store_ref(b, empty_cell());
+  set_data(end_cell(b));
+}
+
+;; Persistent state layout in c4:
+;; uint64 next_index | ref collection_content_cell | ref minted_dates_head_cell
+(int, cell, cell) load_state() inline {
+  if (is_uninitialized()) {
+    init_state();
+  }
+  slice ds = begin_parse(get_data());
+  int next_index = 0;
+  cell content_c = empty_cell();
+  cell minted_head = empty_cell();
+  (next_index, ds) = s_ld_uint(ds, 64);
+  (content_c, ds) = s_ld_ref(ds);
+  (minted_head, ds) = s_ld_ref(ds);
+  return (next_index, content_c, minted_head);
+}
+
+() save_state(int next_index, cell content_c, cell minted_head) impure inline {
+  builder b = begin_cell();
+  b = b_store_uint(b, next_index, 64);
+  b = b_store_ref(b, content_c);
+  b = b_store_ref(b, minted_head);
+  set_data(end_cell(b));
+}
+
+;; Minted dates are stored as a simple linked list of cells: [uint64 date | ref next]
+(int) date_in_list(cell head, int date) inline {
+  cell cur = head;
+  while (1) {
+    slice s = begin_parse(cur);
+    if ((slice_bits(s) == 0) & (slice_refs(s) == 0)) {
+      return 0;
+    }
+    int stored_date = 0;
+    (stored_date, s) = s_ld_uint(s, 64);
+    if (stored_date == date) {
+      return 1;
+    }
+    cell next = empty_cell();
+    (next, s) = s_ld_ref(s);
+    cur = next;
+  }
+  return 0;
+}
+
+(cell) add_date_to_list(cell head, int date) inline {
+  builder b = begin_cell();
+  b = b_store_uint(b, date, 64);
+  b = b_store_ref(b, head);
+  return end_cell(b);
+}
+
+;; op codes
+int OP_MINT_BY_DATE() inline { return 0x4D494E54; } ;; 'MINT'
 
 () recv_internal(int msg_value, cell in_msg, slice in_msg_body) impure {
+  if (is_uninitialized()) {
+    init_state();
+  }
+  if (slice_bits(in_msg_body) < 32) {
+    return (); ;; ignore
+  }
+  slice sb = in_msg_body;
+  int op = 0; (op, sb) = s_ld_uint(sb, 32);
+  if (op == OP_MINT_BY_DATE()) {
+    ;; [op:32][query_id:64][date:64]
+    if (slice_bits(sb) < 64 + 64) {
+      return (); ;; malformed
+    }
+    int query_id = 0;
+    int date = 0;
+    (query_id, sb) = s_ld_uint(sb, 64);
+    (date, sb) = s_ld_uint(sb, 64);
+
+    int next_index = 0;
+    cell content_c = empty_cell();
+    cell minted_head = empty_cell();
+    (next_index, content_c, minted_head) = load_state();
+
+    if (date_in_list(minted_head, date) == 0) {
+      minted_head = add_date_to_list(minted_head, date);
+      next_index = next_index + 1;
+      save_state(next_index, content_c, minted_head);
+    } else {
+      ;; date already minted -> ignore
+    }
+  } else {
+    ;; ignore other ops
+  }
 }
 
 (slice, int, cell) get_collection_data() method_id {
-  slice empty = begin_parse(end_cell(begin_cell()));
-  return (empty, 0, end_cell(begin_cell()));
+  int next_index = 0;
+  cell content_c = empty_cell();
+  cell minted_head = empty_cell();
+  (next_index, content_c, minted_head) = load_state();
+  slice empty = begin_parse(empty_cell());
+  return (empty, next_index, content_c);
 }
 
 (slice) get_nft_address_by_index(int index) method_id {
-  slice empty = begin_parse(end_cell(begin_cell()));
+  ;; Not implemented: requires item code and StateInit; return empty
+  slice empty = begin_parse(empty_cell());
   return empty;
 }
 
 (cell) get_nft_content(int index, cell individual_content) method_id {
-  return end_cell(begin_cell());
+  int next_index = 0;
+  cell content_c = empty_cell();
+  cell minted_head = empty_cell();
+  (next_index, content_c, minted_head) = load_state();
+  return content_c;
 }
